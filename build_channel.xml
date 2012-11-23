@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project
+    name="@projectname@"
+    default="help" >
+
+    <loadproperties srcFile="local.properties" />
+
+    <property environment="env" />
+
+    <condition
+        property="umeng.channel"
+        value="${env.UMENG_CHANNEL}" >
+        <and>
+            <not><isset property="${env.UMENG_CHANNEL}" /></not>
+            <not><isset property="umeng.channel" /></not>
+        </and>
+    </condition>
+
+    <condition
+        property="sdk.dir"
+        value="${env.ANDROID_SDK}" >
+        <and>
+            <not><isset property="${env.ANDROID_SDK}" /></not>
+            <not><isset property="sdk.dir" /></not>
+        </and>
+    </condition>
+
+    <import file="build.xml" />
+
+    <!-- Custom tasks -->
+    <taskdef name="xpath"
+             classname="com.android.ant.XPathTask"
+             classpathref="android.antlibs" />
+
+    <target name="release-channel"
+        depends="config,-set-release-mode, -release-obfuscation-check, -package, -post-package, -release-prompt-for-password, -release-channel-sign, -post-build"
+        description="Builds the application in release-channel mode.">
+    </target>
+    <target name="config" >
+
+        <condition
+            property="umeng.channel"
+            value="${env.UMENG_CHANNEL}" >
+            <and>
+                <not>
+                    <isset property="${env.UMENG_CHANNEL}" />
+                </not>
+                <not>
+                    <isset property="umeng.channel" />
+                </not>
+            </and>
+        </condition>
+
+        <replace
+            file="AndroidManifest.xml"
+            token="dev_channel"
+            value="${umeng.channel}" />
+         <echo>umeng.channel=${umeng.channel}</echo> 
+    </target>
+
+    <!-- custom output file name -->
+    <target name="-release-channel-sign" if="has.keystore" >
+        <!-- only create apk if *not* a library project -->
+        <do-only-if-not-library elseText="Library project: do not create apk..." >
+            <sequential>
+                <property name="out.unaligned.file" location="${out.absolute.dir}/${ant.project.name}-release-unaligned.apk" />
+
+                <echo>umeng.channel=${umeng.channel}</echo>
+
+                <xpath input="AndroidManifest.xml" expression="/manifest/@android:versionName"
+                    output="version.name" default="0.0.0.0"/>
+                <echo>version.name=${version.name}</echo>
+
+                <xpath input="AndroidManifest.xml" expression="/manifest/@android:versionCode"
+                    output="version.code" default="0"/>
+                <echo>version.code=${version.code}</echo>
+
+                <echo>Signing final apk...</echo>
+                <property name="version.name" value="${version.name}" />
+                <property name="version.code" value="${version.code}" />
+
+                <!-- 在这里定义安装包的文件名规则 -->
+                <property name="out.channel.file" location="${out.absolute.dir}/${ant.project.name}_${version.name}_build${version.code}_${umeng.channel}.apk" />
+
+                <!-- Signs the APK -->
+                <echo>Signing final apk...</echo>
+                <signjar
+                        jar="${out.packaged.file}"
+                        signedjar="${out.unaligned.file}"
+                        keystore="${key.store}"
+                        storepass="${key.store.password}"
+                        alias="${key.alias}"
+                        keypass="${key.alias.password}"
+                        verbose="${verbose}" />
+
+                <!-- Zip aligns the APK -->
+                <zipalign-helper
+                        in.package="${out.unaligned.file}"
+                        out.package="${out.channel.file}" />
+                <echo>Release Package: ${out.channel.file}</echo>
+            </sequential>
+        </do-only-if-not-library>
+        <record-build-info />
+    </target>
+
+</project>
